@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MEDIABOT — Universal Capture & Download</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/webtorrent/1.9.7/webtorrent.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne+Mono&family=Archivo+Black&family=Syne:wght@400;600;800&display=swap');
+
+:root {
+  --void: #05080d;
+  --base: #0a0f18;
+  --surface: #0f1824;
+  --raised: #162030;
+  --edge: #1e2e42;
+  --line: #243546;
+  --dim: #3a566e;
+  --muted: #5a7a8e;
+  --text: #a8c8d8;
+  --bright: #d8eef8;
+  --cyan: #00d4ff;
+  --green: #39ff7e;
+  --red: #ff3b5c;
+  --amber: #ffb800;
+  --purple: #b06cff;
+  --glow-cyan: 0 0 24px rgba(0,212,255,0.35);
+  --glow-green: 0 0 24px rgba(57,255,126,0.35);
+  --glow-red: 0 0 24px rgba(255,59,92,0.35);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--void);
+  color: var(--text);
+  font-family: 'Syne', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  cursor: crosshair;
+}
+
+/* Animated scanline + grid overlay */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,212,255,0.012) 2px, rgba(0,212,255,0.012) 4px),
+    repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(0,212,255,0.015) 60px, rgba(0,212,255,0.015) 61px),
+    repeating-linear-gradient(0deg, transparent, transparent 60px, rgba(0,212,255,0.015) 60px, rgba(0,212,255,0.015) 61px);
+  pointer-events: none; z-index: 9999;
+  animation: scanroll 8s linear infinite;
+}
+
+@keyframes scanroll {
+  0% { background-position: 0 0, 0 0, 0 0; }
+  100% { background-position: 0 100px, 0 0, 0 0; }
+}
+
+/* Noise grain */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 200px;
+  pointer-events: none; z-index: 9998; opacity: 0.5;
+}
+
+/* =========================================
+   LAYOUT
+   ========================================= */
+.app-shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+}
+
+/* =========================================
+   HEADER
+   ========================================= */
+.header {
+  padding: 28px 32px 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.brand-name {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: clamp(2.2rem, 6vw, 4rem);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--bright);
+  position: relative;
+}
+
+.brand-name .hi { color: var(--cyan); text-shadow: var(--glow-cyan); }
+.brand-name .lo { color: var(--muted); }
+
+.brand-sub {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.35em;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+
+/* Capability badges */
+.cap-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-top: 8px;
+}
+
+.badge {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.18em;
+  padding: 5px 10px;
+  border-radius: 2px;
+  border: 1px solid;
+  text-transform: uppercase;
+  display: flex; align-items: center; gap: 5px;
+  transition: all 0.3s;
+}
+
+.badge .b-dot { width: 5px; height: 5px; border-radius: 50%; }
+
+.badge-screen { border-color: var(--purple); color: var(--purple); }
+.badge-screen .b-dot { background: var(--purple); }
+.badge-cam { border-color: var(--cyan); color: var(--cyan); }
+.badge-cam .b-dot { background: var(--cyan); animation: blink 1.8s infinite; }
+.badge-torrent { border-color: var(--amber); color: var(--amber); }
+.badge-torrent .b-dot { background: var(--amber); }
+.badge-url { border-color: var(--green); color: var(--green); }
+.badge-url .b-dot { background: var(--green); }
+
+.badge.lit { box-shadow: 0 0 12px currentColor; }
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* =========================================
+   NAV TABS
+   ========================================= */
+.nav {
+  display: flex;
+  gap: 0;
+  padding: 24px 32px 0;
+  border-bottom: 1px solid var(--edge);
+}
+
+.nav-btn {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  background: none;
+  border: none;
+  color: var(--dim);
+  padding: 12px 22px;
+  cursor: crosshair;
+  position: relative;
+  transition: color 0.2s;
+  white-space: nowrap;
+}
+
+.nav-btn::after {
+  content: '';
+  position: absolute;
+  bottom: -1px; left: 0; right: 0;
+  height: 2px;
+  background: var(--cyan);
+  transform: scaleX(0);
+  transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: var(--glow-cyan);
+}
+
+.nav-btn:hover { color: var(--text); }
+.nav-btn.active { color: var(--cyan); }
+.nav-btn.active::after { transform: scaleX(1); }
+
+/* Tab icons */
+.nav-btn .t-icon { margin-right: 6px; opacity: 0.7; }
+
+/* =========================================
+   MAIN CONTENT
+   ========================================= */
+.main {
+  padding: 28px 32px 48px;
+  display: grid;
+  gap: 20px;
+}
+
+.tab-panel { display: none; animation: panelIn 0.3s ease; }
+.tab-panel.active { display: grid; gap: 20px; }
+
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* =========================================
+   CARD
+   ========================================= */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 22px;
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line), transparent);
+}
+
+.card-title {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.3em;
+  color: var(--cyan);
+  text-transform: uppercase;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-title::before {
+  content: '';
+  width: 20px; height: 1px;
+  background: var(--cyan);
+  box-shadow: var(--glow-cyan);
+}
+
+/* =========================================
+   INPUT SYSTEM
+   ========================================= */
+.field-group {
+  margin-bottom: 16px;
+}
+
+.field-label {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.25em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.inp {
+  flex: 1;
+  background: var(--base);
+  border: 1px solid var(--edge);
+  color: var(--bright);
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.78rem;
+  padding: 12px 16px;
+  border-radius: 5px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  min-width: 0;
+}
+
+.inp::placeholder { color: var(--dim); }
+
+.inp:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(0,212,255,0.08), inset 0 0 0 1px rgba(0,212,255,0.1);
+}
+
+/* =========================================
+   BUTTONS
+   ========================================= */
+.btn {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: var(--raised);
+  border: 1px solid var(--edge);
+  color: var(--text);
+  padding: 12px 18px;
+  cursor: crosshair;
+  border-radius: 5px;
+  transition: all 0.2s;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.btn:hover {
+  background: var(--edge);
+  color: var(--bright);
+  transform: translateY(-1px);
+}
+
+.btn:active { transform: translateY(0); }
+
+.btn:disabled {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.btn-cyan {
+  background: rgba(0,212,255,0.08);
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+.btn-cyan:hover {
+  background: var(--cyan);
+  color: var(--void);
+  box-shadow: var(--glow-cyan);
+}
+
+.btn-green {
+  background: rgba(57,255,126,0.08);
+  border-color: var(--green);
+  color: var(--green);
+}
+.btn-green:hover {
+  background: var(--green);
+  color: var(--void);
+  box-shadow: var(--glow-green);
+}
+
+.btn-red {
+  background: rgba(255,59,92,0.08);
+  border-color: var(--red);
+  color: var(--red);
+}
+.btn-red:hover {
+  background: var(--red);
+  color: #fff;
+  box-shadow: var(--glow-red);
+}
+
+.btn-amber {
+  background: rgba(255,184,0,0.08);
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.btn-amber:hover {
+  background: var(--amber);
+  color: var(--void);
+}
+
+.btn-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* =========================================
+   SELECT
+   ========================================= */
+.sel {
+  background: var(--base);
+  border: 1px solid var(--edge);
+  color: var(--bright);
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.72rem;
+  padding: 10px 14px;
+  border-radius: 5px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.sel:focus { border-color: var(--cyan); }
+
+/* =========================================
+   VIDEO / MEDIA FRAME
+   ========================================= */
+.media-frame {
+  background: var(--void);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  aspect-ratio: 16/9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.media-frame video,
+.media-frame audio {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.media-frame .empty-state {
+  text-align: center;
+  pointer-events: none;
+}
+
+.empty-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 12px;
+  opacity: 0.15;
+}
+
+.empty-text {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  color: var(--dim);
+}
+
+/* Corner decorations on media frame */
+.media-frame::before, .media-frame::after {
+  content: '';
+  position: absolute;
+  width: 16px; height: 16px;
+  z-index: 2;
+  pointer-events: none;
+}
+.media-frame::before {
+  top: 6px; left: 6px;
+  border-top: 1px solid var(--cyan);
+  border-left: 1px solid var(--cyan);
+  opacity: 0.4;
+}
+.media-frame::after {
+  bottom: 6px; right: 6px;
+  border-bottom: 1px solid var(--cyan);
+  border-right: 1px solid var(--cyan);
+  opacity: 0.4;
+}
+
+.frame-overlay {
+  position: absolute; inset: 0;
+  pointer-events: none;
+}
+
+/* =========================================
+   RECORDING INDICATOR
+   ========================================= */
+.rec-strip {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255,59,92,0.1);
+  border: 1px solid var(--red);
+  border-radius: 5px;
+  padding: 10px 16px;
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--red);
+}
+
+.rec-strip.show { display: flex; animation: panelIn 0.3s; }
+
+.rec-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: var(--glow-red);
+  animation: blink 0.7s infinite;
+}
+
+.rec-label { letter-spacing: 0.2em; }
+.rec-time { font-variant-numeric: tabular-nums; margin-left: auto; letter-spacing: 0.1em; }
+
+/* =========================================
+   STATS GRID
+   ========================================= */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.stat-cell {
+  background: var(--base);
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  padding: 12px;
+  text-align: center;
+}
+
+.stat-val {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 1.2rem;
+  color: var(--cyan);
+  letter-spacing: -0.02em;
+  display: block;
+}
+
+.stat-key {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.25em;
+  color: var(--dim);
+  text-transform: uppercase;
+  margin-top: 4px;
+  display: block;
+}
+
+/* =========================================
+   FILE LIST
+   ========================================= */
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.file-row {
+  background: var(--base);
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  padding: 12px 16px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  animation: panelIn 0.25s ease;
+}
+
+.file-name {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-meta {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--dim);
+  margin-top: 4px;
+}
+
+.file-progress {
+  height: 2px;
+  background: var(--edge);
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.file-progress-fill {
+  height: 100%;
+  background: var(--cyan);
+  box-shadow: 0 0 6px var(--cyan);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* =========================================
+   LOG TERMINAL
+   ========================================= */
+.terminal {
+  background: var(--void);
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.terminal-bar {
+  background: var(--base);
+  border-bottom: 1px solid var(--edge);
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.t-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+
+.t-dot-r { background: #ff5f57; }
+.t-dot-y { background: #febc2e; }
+.t-dot-g { background: #28c840; }
+
+.terminal-title {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--dim);
+  letter-spacing: 0.2em;
+  margin-left: 4px;
+}
+
+.terminal-body {
+  padding: 12px 14px;
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.68rem;
+  line-height: 1.9;
+  max-height: 180px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--edge) transparent;
+}
+
+.t-line { display: block; word-break: break-all; }
+.t-line.t-info { color: var(--cyan); }
+.t-line.t-ok { color: var(--green); }
+.t-line.t-warn { color: var(--amber); }
+.t-line.t-err { color: var(--red); }
+.t-line.t-dim { color: var(--dim); }
+.t-line .t-ts { color: var(--dim); opacity: 0.6; margin-right: 8px; }
+
+/* =========================================
+   URL RESULT PANEL
+   ========================================= */
+.url-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.meta-cell {
+  background: var(--base);
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  padding: 10px 14px;
+}
+
+.meta-k {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.57rem;
+  letter-spacing: 0.2em;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+
+.meta-v {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--bright);
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+/* =========================================
+   YOUTUBE HELPER PANEL
+   ========================================= */
+.yt-panel {
+  background: rgba(255,59,92,0.05);
+  border: 1px solid rgba(255,59,92,0.2);
+  border-radius: 6px;
+  padding: 18px;
+}
+
+.yt-title {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  color: var(--red);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+
+.yt-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+
+.yt-note strong { color: var(--text); }
+
+.yt-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.yt-option {
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.yt-opt-name {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text);
+}
+
+.yt-opt-desc {
+  font-size: 0.72rem;
+  color: var(--dim);
+  margin-top: 2px;
+}
+
+/* =========================================
+   CAPTURE OPTIONS
+   ========================================= */
+.capture-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.cap-option {
+  background: var(--base);
+  border: 2px solid var(--edge);
+  border-radius: 6px;
+  padding: 14px;
+  cursor: crosshair;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.cap-option:hover { border-color: var(--muted); }
+.cap-option.selected { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(0,212,255,0.1); }
+
+.cap-opt-icon { font-size: 1.6rem; display: block; margin-bottom: 8px; }
+
+.cap-opt-name {
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--bright);
+  text-transform: uppercase;
+}
+
+.cap-opt-desc {
+  font-size: 0.68rem;
+  color: var(--dim);
+  margin-top: 4px;
+}
+
+/* =========================================
+   PROGRESS OVERLAY ON VIDEO
+   ========================================= */
+.capture-overlay-badge {
+  position: absolute;
+  top: 10px; right: 10px;
+  background: rgba(255,59,92,0.85);
+  border-radius: 3px;
+  padding: 4px 10px;
+  font-family: 'Syne Mono', monospace;
+  font-size: 0.65rem;
+  color: #fff;
+  display: none;
+  z-index: 5;
+}
+
+.capture-overlay-badge.show { display: block; }
+
+/* =========================================
+   DIVIDER
+   ========================================= */
+.divider {
+  border: none;
+  border-top: 1px solid var(--edge);
+  margin: 16px 0;
+}
+
+/* =========================================
+   TWO-COL LAYOUT
+   ========================================= */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* =========================================
+   AUDIO VISUALIZER
+   ========================================= */
+.visualizer-wrap {
+  aspect-ratio: 16/4;
+  background: var(--void);
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  overflow: hidden;
+  position: relative;
+}
+
+canvas#visualizer {
+  width: 100%; height: 100%;
+}
+
+/* =========================================
+   RESPONSIVE
+   ========================================= */
+@media (max-width: 700px) {
+  .header, .nav, .main { padding-left: 16px; padding-right: 16px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .two-col { grid-template-columns: 1fr; }
+  .nav { overflow-x: auto; }
+  .capture-options { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 440px) {
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .capture-options { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- HEADER -->
+  <div>
+    <header class="header">
+      <div class="brand">
+        <div class="brand-name">MEDIA<span class="hi">BOT</span></div>
+        <div class="brand-sub">Universal Capture · Stream · Download Engine</div>
+        <div class="cap-badges" style="margin-top:10px;">
+          <div class="badge badge-screen" id="badge-screen"><span class="b-dot"></span> Screen</div>
+          <div class="badge badge-cam" id="badge-cam"><span class="b-dot"></span> Webcam</div>
+          <div class="badge badge-torrent" id="badge-torrent"><span class="b-dot"></span> Torrent P2P</div>
+          <div class="badge badge-url" id="badge-url"><span class="b-dot"></span> URL Media</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- NAV -->
+    <nav class="nav">
+      <button class="nav-btn active" onclick="showTab('capture')" id="nav-capture">
+        <span class="t-icon">◉</span>CAPTURE
+      </button>
+      <button class="nav-btn" onclick="showTab('torrent')" id="nav-torrent">
+        <span class="t-icon">⬡</span>MAGNET / TORRENT
+      </button>
+      <button class="nav-btn" onclick="showTab('url')" id="nav-url">
+        <span class="t-icon">↗</span>URL / STREAM
+      </button>
+    </nav>
+  </div>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- ============================================================
+         TAB: CAPTURE
+         ============================================================ -->
+    <div class="tab-panel active" id="tab-capture">
+
+      <!-- Capture Source Selection -->
+      <div class="card">
+        <div class="card-title">Capture Source</div>
+        <div class="capture-options">
+          <div class="cap-option selected" id="co-cam" onclick="selectCapMode('cam')">
+            <span class="cap-opt-icon">📷</span>
+            <div class="cap-opt-name">Camera</div>
+            <div class="cap-opt-desc">Webcam + Mic</div>
+          </div>
+          <div class="cap-option" id="co-screen" onclick="selectCapMode('screen')">
+            <span class="cap-opt-icon">🖥</span>
+            <div class="cap-opt-name">Screen</div>
+            <div class="cap-opt-desc">Desktop + Audio</div>
+          </div>
+          <div class="cap-option" id="co-screencam" onclick="selectCapMode('screencam')">
+            <span class="cap-opt-icon">🖥+📷</span>
+            <div class="cap-opt-name">Screen + Cam</div>
+            <div class="cap-opt-desc">PiP style</div>
+          </div>
+          <div class="cap-option" id="co-mic" onclick="selectCapMode('mic')">
+            <span class="cap-opt-icon">🎤</span>
+            <div class="cap-opt-name">Audio Only</div>
+            <div class="cap-opt-desc">Microphone</div>
+          </div>
+        </div>
+
+        <div class="btn-group">
+          <button class="btn btn-cyan" id="btn-start-cap" onclick="startCapture()">▶ Start Preview</button>
+          <button class="btn btn-red" id="btn-stop-cap" onclick="stopCapture()" disabled>■ Stop</button>
+          <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+            <label class="field-label" style="margin:0;">Format</label>
+            <select class="sel" id="rec-format">
+              <option value="video/webm;codecs=vp9">WebM VP9</option>
+              <option value="video/webm">WebM</option>
+              <option value="video/mp4">MP4</option>
+              <option value="audio/webm">WebM Audio</option>
+              <option value="audio/ogg;codecs=opus">OGG Opus</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="card">
+        <div class="card-title">Live Preview</div>
+        <div class="media-frame" id="cap-frame">
+          <div class="empty-state" id="cap-empty">
+            <span class="empty-icon">◉</span>
+            <div class="empty-text">SELECT SOURCE &amp; PRESS START</div>
+          </div>
+          <video id="cap-video" autoplay muted playsinline style="display:none;"></video>
+          <div class="capture-overlay-badge" id="cap-rec-badge">● REC</div>
+        </div>
+
+        <!-- Audio only visualizer -->
+        <div class="visualizer-wrap" id="viz-wrap" style="display:none;margin-top:10px;">
+          <canvas id="visualizer"></canvas>
+        </div>
+
+        <hr class="divider">
+
+        <div class="btn-group">
+          <button class="btn btn-red" id="btn-rec" onclick="startRec()" disabled>⏺ Record</button>
+          <button class="btn" id="btn-stop-rec" onclick="stopRec()" disabled>⏹ Stop</button>
+          <button class="btn btn-green" id="btn-save-rec" onclick="saveRec()" disabled>⬇ Save File</button>
+          <button class="btn" id="btn-snapshot" onclick="takeSnapshot()" disabled>📷 Snapshot</button>
+        </div>
+
+        <!-- Recording strip -->
+        <div class="rec-strip" id="rec-strip" style="margin-top:12px;">
+          <div class="rec-dot"></div>
+          <span class="rec-label">RECORDING</span>
+          <span id="rec-size" style="color:var(--muted);font-size:0.65rem;margin-left:8px;">0 B</span>
+          <span class="rec-time" id="rec-clock">00:00</span>
+        </div>
+      </div>
+
+      <!-- Capture log -->
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="t-dot t-dot-r"></div>
+          <div class="t-dot t-dot-y"></div>
+          <div class="t-dot t-dot-g"></div>
+          <span class="terminal-title">CAPTURE LOG</span>
+        </div>
+        <div class="terminal-body" id="cap-log">
+          <span class="t-line t-dim">// Ready. Select a capture source above.</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ============================================================
+         TAB: TORRENT / MAGNET
+         ============================================================ -->
+    <div class="tab-panel" id="tab-torrent">
+
+      <div class="card">
+        <div class="card-title">Add Magnet Link or Torrent URL</div>
+
+        <div class="field-group">
+          <label class="field-label">Magnet Link / .torrent URL</label>
+          <div class="input-row">
+            <input type="text" class="inp" id="magnet-inp"
+              placeholder="magnet:?xt=urn:btih:... or https://...file.torrent" />
+            <button class="btn btn-amber" onclick="addTorrent()">+ Add</button>
+          </div>
+        </div>
+
+        <div class="stats-grid" id="torrent-stats" style="display:none;">
+          <div class="stat-cell">
+            <span class="stat-val" id="st-down">0 B/s</span>
+            <span class="stat-key">Download</span>
+          </div>
+          <div class="stat-cell">
+            <span class="stat-val" id="st-up">0 B/s</span>
+            <span class="stat-key">Upload</span>
+          </div>
+          <div class="stat-cell">
+            <span class="stat-val" id="st-peers">0</span>
+            <span class="stat-key">Peers</span>
+          </div>
+          <div class="stat-cell">
+            <span class="stat-val" id="st-progress">0%</span>
+            <span class="stat-key">Progress</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stream Player -->
+      <div class="card" id="torrent-player-card" style="display:none;">
+        <div class="card-title">Inline Stream</div>
+        <div class="media-frame" id="torrent-frame">
+          <video id="torrent-video" controls style="width:100%;height:100%;"></video>
+        </div>
+      </div>
+
+      <!-- File List -->
+      <div class="card" id="torrent-files-card" style="display:none;">
+        <div class="card-title">Files</div>
+        <div class="file-list" id="file-list"></div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-red" id="btn-torrent-stop" onclick="stopTorrents()" disabled>■ Stop All</button>
+      </div>
+
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="t-dot t-dot-r"></div>
+          <div class="t-dot t-dot-y"></div>
+          <div class="t-dot t-dot-g"></div>
+          <span class="terminal-title">TORRENT LOG</span>
+        </div>
+        <div class="terminal-body" id="torrent-log">
+          <span class="t-line t-dim">// Paste a magnet link or .torrent URL and press Add.</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ============================================================
+         TAB: URL / STREAM
+         ============================================================ -->
+    <div class="tab-panel" id="tab-url">
+
+      <div class="card">
+        <div class="card-title">Media URL</div>
+        <div class="field-group">
+          <label class="field-label">Direct URL — video, audio, image, HLS, or .torrent</label>
+          <div class="input-row">
+            <input type="text" class="inp" id="url-inp"
+              placeholder="https://... (direct .mp4, .mp3, .m3u8, .torrent, etc.)" />
+            <button class="btn btn-green" onclick="fetchURL()">→ Load</button>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn" id="btn-copy-url" onclick="copyMediaURL()" disabled>⎘ Copy URL</button>
+          <button class="btn btn-green" id="btn-dl-url" onclick="dlURL()" disabled>⬇ Download</button>
+        </div>
+      </div>
+
+      <!-- Meta -->
+      <div class="card" id="url-meta-card" style="display:none;">
+        <div class="card-title">Detected Info</div>
+        <div class="url-meta-grid" id="url-meta-grid"></div>
+      </div>
+
+      <!-- Media preview -->
+      <div class="card" id="url-media-card" style="display:none;">
+        <div class="card-title">Inline Player</div>
+        <div class="media-frame" id="url-frame">
+          <video id="url-video" controls style="display:none;width:100%;height:100%;"></video>
+          <audio id="url-audio" controls style="display:none;position:absolute;bottom:20px;width:90%;"></audio>
+          <img id="url-img" style="display:none;max-width:100%;max-height:100%;object-fit:contain;" />
+        </div>
+      </div>
+
+      <!-- YouTube / Social helper -->
+      <div class="yt-panel" id="yt-helper" style="display:none;">
+        <div class="yt-title">⚠ YouTube / Social Media URL Detected</div>
+        <p class="yt-note">
+          Browser security prevents direct downloading from <strong>YouTube, Vimeo, Twitter/X, Instagram</strong> and similar sites.<br>
+          These tools work <strong>100% free</strong> — open any of them, paste your URL, and download in your desired quality:
+        </p>
+        <div class="yt-options">
+          <div class="yt-option">
+            <div>
+              <div class="yt-opt-name">yt-dlp (Desktop — Best Quality)</div>
+              <div class="yt-opt-desc">Free CLI tool, works with 1000+ sites, MP4/MP3/4K/subtitles</div>
+            </div>
+            <button class="btn btn-green" onclick="window.open('https://github.com/yt-dlp/yt-dlp#installation','_blank')">Get yt-dlp</button>
+          </div>
+          <div class="yt-option">
+            <div>
+              <div class="yt-opt-name">cobalt.tools (Browser — Fast)</div>
+              <div class="yt-opt-desc">No ads, no tracking. Paste URL → download instantly</div>
+            </div>
+            <button class="btn btn-cyan" onclick="openCobalt()">Open cobalt.tools</button>
+          </div>
+          <div class="yt-option">
+            <div>
+              <div class="yt-opt-name">9xbuddy / SaveFrom (Browser — Easy)</div>
+              <div class="yt-opt-desc">Paste URL, choose quality, download</div>
+            </div>
+            <button class="btn" onclick="window.open('https://9xbuddy.in','_blank')">Open 9xBuddy</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="t-dot t-dot-r"></div>
+          <div class="t-dot t-dot-y"></div>
+          <div class="t-dot t-dot-g"></div>
+          <span class="terminal-title">URL LOG</span>
+        </div>
+        <div class="terminal-body" id="url-log">
+          <span class="t-line t-dim">// Paste any direct media URL. Supports: mp4 webm mkv mp3 wav ogg m4a m3u8 torrent + more.</span>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<!-- Hidden canvas for snapshots -->
+<canvas id="snap-canvas" style="display:none;"></canvas>
+
+<script>
+'use strict';
+
+// ================================================================
+// UTILS
+// ================================================================
+function ts() {
+  return new Date().toLocaleTimeString('en', {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+function tlog(id, msg, type='info') {
+  const box = document.getElementById(id);
+  const el = document.createElement('span');
+  el.className = `t-line t-${type}`;
+  el.innerHTML = `<span class="t-ts">${ts()}</span>${msg}`;
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+}
+
+function fmt(bytes) {
+  if (bytes == null || isNaN(bytes)) return '—';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824) return (bytes/1048576).toFixed(1) + ' MB';
+  return (bytes/1073741824).toFixed(2) + ' GB';
+}
+
+function fmtRate(bps) { return fmt(bps) + '/s'; }
+
+function setBadgeLit(id, on) {
+  document.getElementById(id)?.classList.toggle('lit', on);
+}
+
+// ================================================================
+// TAB SWITCHING
+// ================================================================
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.getElementById('nav-'+name).classList.add('active');
+}
+
+// ================================================================
+// CAPTURE ENGINE
+// ================================================================
+let capMode = 'cam';
+let capStream = null;
+let capStream2 = null; // for PiP second stream
+let mediaRecorder = null;
+let recChunks = [];
+let recInterval = null;
+let recSecs = 0;
+let audioCtx = null, analyser = null, vizRaf = null;
+
+function selectCapMode(mode) {
+  capMode = mode;
+  document.querySelectorAll('.cap-option').forEach(el => el.classList.remove('selected'));
+  document.getElementById('co-'+mode)?.classList.add('selected');
+}
+
+async function startCapture() {
+  if (capStream) stopCapture();
+
+  tlog('cap-log', `Starting capture: ${capMode}...`, 'info');
+
+  try {
+    const isAudioOnly = capMode === 'mic';
+
+    if (capMode === 'cam') {
+      capStream = await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1920},height:{ideal:1080}},audio:true});
+      setBadgeLit('badge-cam', true);
+    } else if (capMode === 'screen') {
+      capStream = await navigator.mediaDevices.getDisplayMedia({video:{cursor:'always'},audio:true});
+      setBadgeLit('badge-screen', true);
+    } else if (capMode === 'screencam') {
+      capStream = await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
+      capStream2 = await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+      setBadgeLit('badge-screen', true);
+      setBadgeLit('badge-cam', true);
+    } else if (capMode === 'mic') {
+      capStream = await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    }
+
+    const video = document.getElementById('cap-video');
+    const emptyEl = document.getElementById('cap-empty');
+    const vizWrap = document.getElementById('viz-wrap');
+
+    if (isAudioOnly) {
+      video.style.display = 'none';
+      vizWrap.style.display = 'block';
+      startVisualizer(capStream);
+    } else {
+      video.srcObject = capStream;
+      video.style.display = 'block';
+      emptyEl.style.display = 'none';
+      vizWrap.style.display = 'none';
+    }
+
+    // Activate controls
+    document.getElementById('btn-start-cap').disabled = true;
+    document.getElementById('btn-stop-cap').disabled = false;
+    document.getElementById('btn-rec').disabled = false;
+    document.getElementById('btn-snapshot').disabled = isAudioOnly;
+
+    // Handle stream end
+    capStream.getTracks().forEach(t => {
+      t.onended = () => {
+        tlog('cap-log', `Track ended: ${t.kind}`, 'warn');
+        if ([...capStream.getTracks()].every(x => x.readyState==='ended')) stopCapture();
+      };
+    });
+
+    tlog('cap-log', `Preview live: ${capStream.getTracks().map(t=>t.kind).join(', ')}`, 'ok');
+
+  } catch(e) {
+    tlog('cap-log', `Error: ${e.message}`, 'err');
+  }
+}
+
+function stopCapture() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') stopRec();
+  if (capStream) { capStream.getTracks().forEach(t => t.stop()); capStream = null; }
+  if (capStream2) { capStream2.getTracks().forEach(t => t.stop()); capStream2 = null; }
+
+  const video = document.getElementById('cap-video');
+  video.srcObject = null;
+  video.style.display = 'none';
+  document.getElementById('cap-empty').style.display = 'flex';
+  document.getElementById('viz-wrap').style.display = 'none';
+  document.getElementById('btn-start-cap').disabled = false;
+  document.getElementById('btn-stop-cap').disabled = true;
+  document.getElementById('btn-rec').disabled = true;
+  document.getElementById('btn-snapshot').disabled = true;
+
+  setBadgeLit('badge-cam', false);
+  setBadgeLit('badge-screen', false);
+
+  stopVisualizer();
+  tlog('cap-log', 'Capture stopped.', 'warn');
+}
+
+function startRec() {
+  if (!capStream) return;
+
+  recChunks = [];
+  recSecs = 0;
+
+  const fmtVal = document.getElementById('rec-format').value;
+  const opts = MediaRecorder.isTypeSupported(fmtVal) ? {mimeType: fmtVal} : {};
+
+  if (!opts.mimeType) {
+    tlog('cap-log', `Format ${fmtVal} not supported — using browser default`, 'warn');
+  }
+
+  // For screencam mode, merge streams
+  let recStream = capStream;
+  if (capMode === 'screencam' && capStream2) {
+    const tracks = [...capStream.getTracks(), ...capStream2.getTracks()];
+    recStream = new MediaStream(tracks);
+  }
+
+  mediaRecorder = new MediaRecorder(recStream, opts);
+
+  mediaRecorder.ondataavailable = e => {
+    if (e.data.size > 0) recChunks.push(e.data);
+    // Update size display
+    const totalBytes = recChunks.reduce((a,c) => a+c.size, 0);
+    document.getElementById('rec-size').textContent = fmt(totalBytes);
+  };
+
+  mediaRecorder.onstop = () => {
+    document.getElementById('btn-save-rec').disabled = false;
+    tlog('cap-log', `Recording ready: ${fmt(recChunks.reduce((a,c)=>a+c.size,0))}`, 'ok');
+  };
+
+  mediaRecorder.start(500);
+
+  document.getElementById('btn-rec').disabled = true;
+  document.getElementById('btn-stop-rec').disabled = false;
+  document.getElementById('cap-rec-badge').classList.add('show');
+  document.getElementById('rec-strip').classList.add('show');
+
+  recInterval = setInterval(() => {
+    recSecs++;
+    const m = String(Math.floor(recSecs/60)).padStart(2,'0');
+    const s = String(recSecs%60).padStart(2,'0');
+    document.getElementById('rec-clock').textContent = `${m}:${s}`;
+  }, 1000);
+
+  tlog('cap-log', 'Recording started.', 'info');
+}
+
+function stopRec() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  clearInterval(recInterval);
+  document.getElementById('btn-rec').disabled = false;
+  document.getElementById('btn-stop-rec').disabled = true;
+  document.getElementById('cap-rec-badge').classList.remove('show');
+  document.getElementById('rec-strip').classList.remove('show');
+}
+
+function saveRec() {
+  if (!recChunks.length) return;
+  const fmtVal = document.getElementById('rec-format').value;
+  const extMap = {'video/webm':'webm','video/mp4':'mp4','audio/webm':'webm','audio/ogg':'ogg'};
+  const ext = Object.entries(extMap).find(([k])=>fmtVal.startsWith(k))?.[1] || 'webm';
+  const blob = new Blob(recChunks, {type: fmtVal.split(';')[0]});
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), {href:url, download:`mediabot-${Date.now()}.${ext}`});
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  tlog('cap-log', `Saved: mediabot.${ext} (${fmt(blob.size)})`, 'ok');
+  document.getElementById('btn-save-rec').disabled = true;
+  recChunks = [];
+}
+
+function takeSnapshot() {
+  const video = document.getElementById('cap-video');
+  if (!video.srcObject) return;
+  const canvas = document.getElementById('snap-canvas');
+  canvas.width = video.videoWidth || 1280;
+  canvas.height = video.videoHeight || 720;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  canvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), {href:url, download:`snapshot-${Date.now()}.png`});
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    tlog('cap-log', 'Snapshot saved!', 'ok');
+  }, 'image/png');
+}
+
+// Audio visualizer
+function startVisualizer(stream) {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = audioCtx.createMediaStreamSource(stream);
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  source.connect(analyser);
+
+  const canvas = document.getElementById('visualizer');
+  const ctx = canvas.getContext('2d');
+  const buf = new Uint8Array(analyser.frequencyBinCount);
+
+  function draw() {
+    vizRaf = requestAnimationFrame(draw);
+    analyser.getByteFrequencyData(buf);
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const barW = (canvas.width / buf.length) * 2.5;
+    let x = 0;
+    for (let i=0; i<buf.length; i++) {
+      const h = (buf[i]/255)*canvas.height;
+      const alpha = 0.4 + (buf[i]/255)*0.6;
+      ctx.fillStyle = `rgba(0,212,255,${alpha})`;
+      ctx.fillRect(x, canvas.height-h, barW-1, h);
+      x += barW+1;
+    }
+  }
+  draw();
+}
+
+function stopVisualizer() {
+  if (vizRaf) cancelAnimationFrame(vizRaf);
+  if (analyser) { analyser.disconnect(); analyser = null; }
+}
+
+// ================================================================
+// WEBTORRENT ENGINE
+// ================================================================
+let wtClient = null;
+let wtStatsInterval = null;
+
+function getWTClient() {
+  if (!wtClient) {
+    wtClient = new WebTorrent({
+      tracker: {
+        announce: [
+          'wss://tracker.openwebtorrent.com',
+          'wss://tracker.btorrent.xyz',
+          'wss://tracker.fastcast4u.com',
+          'wss://tracker.novage.com.ua'
+        ]
+      }
+    });
+    wtClient.on('error', err => tlog('torrent-log', 'Client error: ' + err.message, 'err'));
+    setBadgeLit('badge-torrent', true);
+  }
+  return wtClient;
+}
+
+function addTorrent() {
+  const val = document.getElementById('magnet-inp').value.trim();
+  if (!val) return;
+
+  tlog('torrent-log', `Adding: ${val.slice(0,70)}...`, 'info');
+  document.getElementById('btn-torrent-stop').disabled = false;
+
+  const client = getWTClient();
+
+  try {
+    client.add(val, {}, torrent => {
+      tlog('torrent-log', `✓ Torrent: "${torrent.name}"`, 'ok');
+      tlog('torrent-log', `Files: ${torrent.files.length} | Size: ${fmt(torrent.length)}`, 'info');
+
+      document.getElementById('torrent-stats').style.display = 'grid';
+      document.getElementById('torrent-files-card').style.display = 'block';
+
+      torrent.files.forEach(f => addFileRow(f, torrent));
+
+      wtStatsInterval = setInterval(() => {
+        document.getElementById('st-down').textContent = fmtRate(torrent.downloadSpeed);
+        document.getElementById('st-up').textContent = fmtRate(torrent.uploadSpeed);
+        document.getElementById('st-peers').textContent = torrent.numPeers;
+        document.getElementById('st-progress').textContent = (torrent.progress*100).toFixed(1)+'%';
+      }, 800);
+
+      torrent.on('done', () => {
+        tlog('torrent-log', '✓ Download complete!', 'ok');
+        clearInterval(wtStatsInterval);
+      });
+
+      torrent.on('error', e => tlog('torrent-log', 'Torrent error: '+e.message, 'err'));
+    });
+  } catch(e) {
+    tlog('torrent-log', 'Error: '+e.message, 'err');
+  }
+}
+
+function addFileRow(file, torrent) {
+  const list = document.getElementById('file-list');
+  const safeId = 'f_'+Math.random().toString(36).slice(2);
+  const row = document.createElement('div');
+  row.className = 'file-row';
+  row.id = safeId;
+
+  const isMedia = /\.(mp4|webm|mkv|avi|mov|mp3|ogg|flac|wav|m4a)$/i.test(file.name);
+
+  row.innerHTML = `
+    <div class="file-info">
+      <div class="file-name">${file.name}</div>
+      <div class="file-meta">${fmt(file.length)}</div>
+      <div class="file-progress"><div class="file-progress-fill" id="fp-${safeId}" style="width:0%"></div></div>
+    </div>
+    <div class="btn-group">
+      ${isMedia ? `<button class="btn btn-cyan" id="sb-${safeId}" style="padding:8px 12px;font-size:0.6rem;">▶ Stream</button>` : ''}
+      <button class="btn btn-green" id="db-${safeId}" style="padding:8px 12px;font-size:0.6rem;">⬇ Save</button>
+    </div>
+  `;
+
+  list.appendChild(row);
+
+  // Bind buttons
+  if (isMedia) {
+    document.getElementById('sb-'+safeId).onclick = () => streamTorrentFile(file);
+  }
+  document.getElementById('db-'+safeId).onclick = () => downloadTorrentFile(file);
+
+  // Track progress
+  torrent.on('download', () => {
+    const fp = document.getElementById('fp-'+safeId);
+    if (fp) fp.style.width = (torrent.progress*100).toFixed(1)+'%';
+  });
+}
+
+function streamTorrentFile(file) {
+  tlog('torrent-log', 'Streaming: '+file.name, 'info');
+  const player = document.getElementById('torrent-video');
+  document.getElementById('torrent-player-card').style.display = 'block';
+
+  file.renderTo(player, err => {
+    if (err) { tlog('torrent-log', 'Stream error: '+err.message, 'err'); return; }
+    player.play();
+    tlog('torrent-log', 'Streaming started: '+file.name, 'ok');
+  });
+}
+
+function downloadTorrentFile(file) {
+  tlog('torrent-log', 'Saving: '+file.name, 'info');
+  file.getBlobURL((err, url) => {
+    if (err) { tlog('torrent-log', 'Save error: '+err.message, 'err'); return; }
+    const a = Object.assign(document.createElement('a'), {href:url, download:file.name});
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    tlog('torrent-log', 'Download triggered: '+file.name, 'ok');
+  });
+}
+
+function stopTorrents() {
+  if (wtClient) {
+    wtClient.destroy(() => {
+      tlog('torrent-log', 'All torrents stopped.', 'warn');
+      wtClient = null;
+      clearInterval(wtStatsInterval);
+      document.getElementById('file-list').innerHTML = '';
+      document.getElementById('torrent-stats').style.display = 'none';
+      document.getElementById('torrent-files-card').style.display = 'none';
+      document.getElementById('torrent-player-card').style.display = 'none';
+      document.getElementById('btn-torrent-stop').disabled = true;
+      setBadgeLit('badge-torrent', false);
+    });
+  }
+}
+
+// ================================================================
+// URL ENGINE
+// ================================================================
+let activeMediaURL = '';
+
+const SOCIAL_PATTERNS = [
+  /youtube\.com/i, /youtu\.be/i, /vimeo\.com/i,
+  /twitter\.com/i, /x\.com/i, /instagram\.com/i,
+  /tiktok\.com/i, /facebook\.com/i, /twitch\.tv/i,
+  /dailymotion\.com/i, /reddit\.com/i
+];
+
+const EXT_MAP = {
+  video: ['mp4','webm','mkv','avi','mov','m4v','ogv','3gp','flv'],
+  audio: ['mp3','wav','ogg','flac','aac','m4a','opus','weba'],
+  image: ['jpg','jpeg','png','gif','webp','bmp','svg','avif'],
+  hls:   ['m3u8','m3u'],
+  torrent: ['torrent']
+};
+
+function detectType(url) {
+  const ext = url.split('?')[0].split('#')[0].split('.').pop().toLowerCase();
+  for (const [type, exts] of Object.entries(EXT_MAP)) {
+    if (exts.includes(ext)) return {type, ext};
+  }
+  if (SOCIAL_PATTERNS.some(p => p.test(url))) return {type:'social', ext};
+  return {type:'unknown', ext};
+}
+
+function openCobalt() {
+  const url = document.getElementById('url-inp').value.trim();
+  window.open(`https://cobalt.tools`, '_blank');
+}
+
+function addMeta(key, val) {
+  const grid = document.getElementById('url-meta-grid');
+  const cell = document.createElement('div');
+  cell.className = 'meta-cell';
+  cell.innerHTML = `<div class="meta-k">${key}</div><div class="meta-v">${val}</div>`;
+  grid.appendChild(cell);
+}
+
+function fetchURL() {
+  const raw = document.getElementById('url-inp').value.trim();
+  if (!raw) return;
+
+  activeMediaURL = raw;
+  const {type, ext} = detectType(raw);
+
+  tlog('url-log', `Analyzing URL: ${raw.slice(0,60)}...`, 'info');
+  tlog('url-log', `Detected type: ${type.toUpperCase()} (.${ext})`, 'info');
+
+  // Reset UI
+  document.getElementById('url-meta-grid').innerHTML = '';
+  document.getElementById('url-meta-card').style.display = 'block';
+  document.getElementById('yt-helper').style.display = 'none';
+  document.getElementById('url-media-card').style.display = 'none';
+  document.getElementById('url-video').style.display = 'none';
+  document.getElementById('url-audio').style.display = 'none';
+  document.getElementById('url-img').style.display = 'none';
+
+  addMeta('URL', raw.length > 60 ? raw.slice(0,60)+'…' : raw);
+  addMeta('Type', type.toUpperCase());
+  addMeta('Extension', ext ? '.'+ext : '—');
+
+  setBadgeLit('badge-url', true);
+  document.getElementById('btn-copy-url').disabled = false;
+  document.getElementById('btn-dl-url').disabled = false;
+
+  if (type === 'social') {
+    document.getElementById('yt-helper').style.display = 'block';
+    tlog('url-log', 'Social media URL — browser cannot download directly.', 'warn');
+    tlog('url-log', 'Use cobalt.tools or yt-dlp (see suggestions above).', 'warn');
+    return;
+  }
+
+  if (type === 'torrent') {
+    tlog('url-log', 'Torrent URL detected — routing to Torrent tab.', 'warn');
+    document.getElementById('magnet-inp').value = raw;
+    showTab('torrent');
+    addTorrent();
+    return;
+  }
+
+  document.getElementById('url-media-card').style.display = 'block';
+
+  if (type === 'video' || type === 'hls') {
+    const v = document.getElementById('url-video');
+    v.src = raw;
+    v.style.display = 'block';
+    v.onerror = () => tlog('url-log', 'Video load error (CORS or invalid URL).', 'err');
+    v.onloadedmetadata = () => {
+      addMeta('Duration', v.duration ? Math.floor(v.duration)+'s' : '—');
+      addMeta('Resolution', v.videoWidth+'×'+v.videoHeight);
+      tlog('url-log', `Video loaded: ${v.videoWidth}×${v.videoHeight}`, 'ok');
+    };
+  } else if (type === 'audio') {
+    const fr = document.getElementById('url-frame');
+    fr.style.aspectRatio = '16/4';
+    const a = document.getElementById('url-audio');
+    a.src = raw;
+    a.style.display = 'block';
+    tlog('url-log', 'Audio loaded.', 'ok');
+  } else if (type === 'image') {
+    const im = document.getElementById('url-img');
+    im.src = raw;
+    im.style.display = 'block';
+    im.onload = () => {
+      addMeta('Dimensions', im.naturalWidth+'×'+im.naturalHeight);
+      tlog('url-log', `Image loaded: ${im.naturalWidth}×${im.naturalHeight}`, 'ok');
+    };
+    im.onerror = () => tlog('url-log', 'Image load error.', 'err');
+  } else {
+    tlog('url-log', 'Unknown file type — attempting download.', 'warn');
+    dlURL();
+  }
+}
+
+function copyMediaURL() {
+  navigator.clipboard.writeText(activeMediaURL).then(() => {
+    tlog('url-log', 'URL copied to clipboard.', 'ok');
+  });
+}
+
+function dlURL() {
+  if (!activeMediaURL) return;
+  const name = activeMediaURL.split('/').pop().split('?')[0] || 'download';
+  const a = Object.assign(document.createElement('a'), {
+    href: activeMediaURL,
+    download: name,
+    target: '_blank'
+  });
+  a.click();
+  tlog('url-log', `Download triggered: ${name}`, 'ok');
+}
+
+// ================================================================
+// KEYBOARD SHORTCUTS
+// ================================================================
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === '1') showTab('capture');
+  if (e.key === '2') showTab('torrent');
+  if (e.key === '3') showTab('url');
+  if (e.key === 'r' && capStream && !mediaRecorder?.state?.match('recording')) startRec();
+  if (e.key === 's' && mediaRecorder?.state === 'recording') stopRec();
+});
+
+// ================================================================
+// ENTER key support
+// ================================================================
+document.getElementById('magnet-inp').addEventListener('keydown', e => e.key==='Enter' && addTorrent());
+document.getElementById('url-inp').addEventListener('keydown', e => e.key==='Enter' && fetchURL());
+
+// ================================================================
+// INIT CHECK
+// ================================================================
+(function init() {
+  const caps = [];
+  if (navigator.mediaDevices?.getUserMedia) caps.push('Camera/Mic');
+  if (navigator.mediaDevices?.getDisplayMedia) caps.push('Screen Capture');
+  if (window.MediaRecorder) caps.push('Recording');
+  if (window.WebTorrent) caps.push('WebTorrent');
+
+  tlog('cap-log', `Browser capabilities: ${caps.join(', ')}`, 'ok');
+
+  if (!navigator.mediaDevices) {
+    tlog('cap-log', '⚠ Capture requires HTTPS or localhost.', 'err');
+  }
+
+  // Warn if not HTTPS
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+    tlog('cap-log', '⚠ Running on HTTP — camera/screen capture may be blocked.', 'warn');
+    tlog('cap-log', 'Host this file on HTTPS for full functionality.', 'warn');
+  }
+})();
+</script>
+</body>
+</html>
