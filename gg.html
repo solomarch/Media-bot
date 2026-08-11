@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mav bar</title>
+    <link rel="stylesheet" href="style/nav.css">
+    <link rel="stylesheet" href="style/body.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * {
+        margin: 0;
+        padding: 0;
+        }
+
+        cursor {
+            color: purple;
+        }
+        
+        html {
+            font-size: 12pt;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        body {
+            background-color: rgba(0, 0, 0);
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <header class="container_head">
+        <div class="logo">
+            <h1 id="name">Brand</h1>
+        </div>
+        <input type="checkbox" name="" id="side_bar">
+        <label for="side_bar" class="side_bar_menu"><i class="material-icons">menu</i></label>
+        <nav class="nav_bar">
+            <label for="side_bar" class="side_bar_close"><i class="material-icons">close</i></label>
+            <a class="nav_link" id="home_link" href="#zero">Home</a>
+            <a class="nav_link" href="#two">Basic Tags</a>
+            <a class="nav_link" href="">More Section</a>
+            <a class="nav_link" href="">Link Tags</a>
+            <a class="nav_link" href="">Profile</a>
+        </nav>
+    </header>
+
+    <section id="zero">
+        <div class="cube">
+            <div class="face top"></div>
+            <div class="face front">Codee..</div>
+            <div class="face left">HTML</div>
+            <div class="face back">CSS</div>
+            <div class="face right">JAVASCRIPT</div>
+            <div class="face bottom"></div>
+        </div>
+    </section>
+    <section id="one">
+
+
+        <div class="sub-one">
+            <p id="w">Welcome</p>
+            <p id="ww">to our website</p>
+        </div>
+        <div class="sub-two">
+            <a href="">Get Started</a>
+        </div>
+    </section>
+
+    <section id="two">
+        <h1>Basic Tags</h1>
+            <article class="a-grid">
+            <div class="s-box a">
+                <h1>1.Structure Tags</h1><hr><br>
+                <p>Used to organize content in a document.</p>
+                <br>
+                <ul>
+                    <li><code>&lt;area&gt; - </code>Defines a clickable area inside an imae map.</li>
+                    <li><code>&lt;article&gt; - </code>Represents indepndent self-contained content.</li>
+                    <li><code>&lt;aside&gt; - </code>Content indirectly related to te main content(like sidebars).</li>
+                    <li><code>&lt;base&gt; - </code>Sets te base URL for all relatiive links ina document.</li>
+                    <li><code>&lt;canvas&gt; - </code>Used to draw graphics usin JavaScript.</li>
+                    <li><code>&lt;div&gt; - </code>Generic container for content, used for layout/styling.</li>
+                    <li><code>&lt;section&gt; - </code>Represents a tematic grouping of content.</li>
+                    <li><code>&lt;header&gt; - </code>Define a page or section header.</li>
+                    <li><code>&lt;footer&gt; - </code>Define a page or section footer.</li>
+                    <li><code>&lt;main&gt; - </code>Highlights the dominant content of a page.</li>
+                    <li><code>&lt;nav&gt; - </code>Contains navingation links.</li>
+                    <li><code>&lt;summary&gt; - </code>Used with <code>&lt;details&gt; </code>to define a visible heading.</li>
+                    <li></li>
+                    <li><code>&lt;h1&gt; to &lt;h6&gt; - </code>Heading Tags.</li>
+                    <li><code>&lt;p&gt; - </code>Paragraph Tag.</li>
+                    <li><code>&lt;pre&gt; - </code>Preformatted Text.</li>
+                    <li><code>&lt;hr&gt; - </code>Horizontal Rule.</li>
+                    <li><code>&lt;br&gt; - </code>Line Break.</li>
+                </ul>
+            </div>
+            <div class="s-box b">
+                <h1>2.Text Formatting Tags</h1><hr><br>
+                <p>Used to change the appearance or emphasis of text.</p>
+                <br>
+                <ul>
+                    <li><code>&lt;b&gt; - </code>Bold text(Visual only).</li>
+                    <li><code>&lt;strong&gt; - </code>Important text(semantic).</li>
+                    <li><code>&lt;i&gt; - </code>Italic text(visual).</li>
+                    <li><code>&lt;em&gt; - </code>Emphasis text(semantic).</li>
+                    <li><code>&lt;u&gt; - </code>Underline text.</li>
+                    <li><code>&lt;small&gt; - </code>Smaller Text.</li>
+                    <li><code>&lt;mark&gt; - </code>Highlighted or marked Text.</li>
+                    <li><code>&lt;del&gt; - </code>Deleted/struck-through Text.</li>
+                    <li><code>&lt;ins&gt; - </code>Inserted Text.</li>
+                </ul>
+            </div>
+            <div class="s-box c">
+                <h1>3.Sub/Superscript & Abbreviation</h1><hr><br>
+                <ul>
+                    <li><code>&lt;sub&gt; - </code>Subscript text(e.g., chemical formulas).</li>
+                    <li><code>&lt;sup&gt; - </code>Superscript text(e.g., exponents).</li>
+                    <li><code>&lt;abbr&gt; - </code>defines an abbreviation, shows full form on hover.</li>
+                </ul>
+            </div>
+            <div class="s-box d">
+                <h1>4.Code & Technical Tags</h1><hr><br>
+                <p>Used in coading or to show technical content.</p>
+                <br>
+                <ul>
+                    <li><code>&lt;code&gt; - </code>Represents code snippets.</li>
+                    <li><code>&lt;kbd&gt; - </code>Denotes user input vai keyboard.</li>
+                    <li><code>&lt;samp&gt; - </code>Represents sample output from a program.</li>
+                    <li><code>&lt;var&gt; - </code>Defines a variable in a programming or mathematical expression.</li>
+                </ul>
+            </div>
+            <div class="s-box e">
+                <h1>5.Time & Quotation</h1><hr><br>
+                <ul>
+                    <li><code>&lt;time&gt; - </code>Represents a specific date/time.</li>
+                    <li><code>&lt;q&gt; - </code>Defines short inline quotation.</li>
+                    <li><code>&lt;cite&gt; - </code>Indicates a citation or reference(e.g., books, article).</li>
+                </ul>
+            </div>
+            <div class="s-box f">
+                <h1>6.Generic Inline Container</h1><hr><br>
+                <ul>
+                    <li><code>&lt;span&gt; - </code>Generic inline container(for styling with CSS)</li>
+                </ul>
+            </div>
+            <div class="s-box g">
+                <h1>7. Multimedia Tags</h1><hr><br>
+                <ul>
+                    <li><code>&lt;audio&gt; - </code>Embeds sound/audio content.</li>
+                    <li><code>&lt;object&gt; - </code>Embeds multimedia like PDF or Flash(rarely used now).</li>
+                    <li><code>&lt;source&gt; - </code>Specifies  media resources for <code>&lt;audio&gt; or &lt;video&gt;</code>.</li>
+                </ul>
+            </div>
+            <div class="s-box h">
+                <h1>8. Style & Scripting</h1><hr><br>
+                <ul>
+                    <li><code>&lt;style&gt; - </code>Adds CSS styling inside HTML.</li>
+                    <li><code>&lt;script&gt; - </code>Adds JavaScript logic to a page (crossed out in your notes but valid).</li>
+                </ul>
+            </div>
+        </article>
+    </section>
+</body>
+</html>

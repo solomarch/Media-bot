@@ -1,0 +1,305 @@
+/*#one {
+    width: calc(100%);
+    height: calc(100vh - 85px);
+    background: url('../images/bg.jpg');
+    opacity: 0.;
+    background-size: cover;
+    background-position: center;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+}*/
+::selection {
+  color: blueviolet;
+  background-color: #000;
+}
+
+#one {
+  position: relative;
+  height: calc(100vh - 100px);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  overflow: hidden; /* to contain the pseudo-element */
+}
+
+#one::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  /* background: url('../images/bg.jpg') center/cover no-repeat; */
+  opacity: 0.7; /* Adjust this to set background image opacity */
+  z-index: 0;
+}
+
+#one > * {
+  position: relative;
+  z-index: 1; /* Make sure content appears above the background */
+}
+
+
+        /* animation section starts */
+
+
+        #zero {
+            left: 0;
+            right: 0;
+            position: absolute ;
+            background-color: #000000;
+            height: calc(100vh - 100px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            
+            perspective: 1000px;
+                      /* background-color: #000; */
+                      --_text-color: var(--text-color, rgb(255, 255, 255));
+                      --_broder-color: var(--border-color, orange);
+                      --i-c: var(#ff4b4b);
+                      --ii-c: var(#4db2ff);
+        }
+
+
+        .cube {
+            width: 300px;
+            height: 150px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1;
+            transform-style: preserve-3d;     /* Maintains 3D space for child elements */
+            animation: spin 10s infinite linear;
+        }
+
+
+        .face {
+            width: 300px;
+            height: 150px;
+            border: 1px solid #000;
+            position: absolute;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--_text-color);
+            text-shadow: 2px 2px 0px #000;
+            background: linear-gradient(to bottom, rgb(0, 255, 170), blueviolet);
+            font-size: 1.7em;
+            /* backdrop-filter: blur(5px); */
+
+        }
+
+        
+        .top {
+            height: 300px;
+            transform: translateY(130px) rotateX(90deg);
+            background: #000    ;
+            filter: blur(65px);
+            box-shadow: 0px 0px 500px 20px rgb(0, 255, 170);
+            
+        }
+        .bottom {
+            height: 300px;  
+            transform: translateY(-300px) rotateX(90deg);
+            background: #000    ;
+            filter: blur(65px);
+            box-shadow: 0px 0px 200px 20px blueviolet;
+            
+        }
+        
+        .front  {
+            transform: translateZ(150px);
+        }
+        
+        .left  {
+            transform: translateX(150px) rotateY(90deg);
+        }
+        .back  {
+            transform: translateZ(-150px) rotateY(180deg);
+        }
+        .right  {
+            transform: translatex(-150px) rotateY(-90deg);
+        }
+        
+        
+        @keyframes spin {
+            to {
+                transform: translate(-50%, -50%) rotateY(-360deg);
+            }
+            
+        }
+        
+        
+
+
+        /* animation section ends */
+
+.sub-one p {
+    text-shadow: 0px 0px 10px rgb(0, 0, 0);
+    gap: none;
+}
+
+
+.sub-one #w {
+    padding: 0%;
+    color: rgb(0, 205, 170);
+    font-size: 6em;
+    font-weight: 550;
+    transition: 0.2s ease-in-out;
+    
+}
+
+.sub-one #w:hover {
+      color: rgb(0, 255, 170);
+  text-shadow: 3px 3px 10px rgba(0, 180, 170, 0.7);
+}
+
+.sub-one p {
+    color: rgb(0, 255, 170);
+    font-weight: 450;
+    font-size: 1.7em;
+
+}
+
+.sub-two > a{
+  font-size: 1.5em;
+  font-weight: 444;
+  padding: 25px;
+  border: 1px solid rgb(0, 255, 170);
+  background-color: rgb(0, 0, 0);
+  color: rgb(0, 255, 170);
+  text-decoration: none;
+  border-radius: 2%;
+  transition: 0.5s ease-in-out;
+}
+
+.sub-two > a:hover {
+  background-color: rgb(0, 255, 170);
+  color: rgb(0, 0, 0);
+  font-weight: 670;
+}
+
+#two {
+  margin-left: 70px;
+  margin-right: 70px;
+  padding: 0px 30px;
+  z-index: 0;
+  background-color: #1a1a1a;
+  box-shadow: 0px 0px 4px #CCCCCC;
+}
+
+#two > h1 {
+  padding-top: 200px;
+  align-self: center;
+  justify-self: center;
+  font-size: 4em;
+  margin-bottom: 50px;
+}
+
+.a-grid code {
+  font-style: bold;
+  color: blueviolet;
+}
+
+.a-grid {
+  z-index: 3;
+  margin-left: 60px;
+  margin-right: 60px;
+  padding: 25px;
+  box-sizing: border-box;
+  /*box-shadow: 0px 0px 3px rgba(255, 255, 255, 0.5);*/
+  display: grid;
+  gap: 30px;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 150px) 300px 300px ;
+  
+}
+
+.a {
+  grid-row: span 4;
+}
+
+.b {
+  grid-row: span 3;
+}
+
+.c {
+  grid-row: span 2;
+}
+
+.d {
+  grid-row: span 2;
+}
+
+
+
+
+.s-box {
+
+  margin: 5px;
+  padding: 40px;
+  font-size: 1.2rem;
+  border-radius: 2cap;
+  background-color: #0f0f0f;
+  transition: 0.35s ease-in-out;
+}
+.s-box:hover {
+  box-shadow: 0px 0px 7px rgba(255, 255, 255, 0.8);
+  background-color: rgb(0, 0, 0);
+  
+}
+
+.s-box > h1 {
+  margin-top: 10px ;
+  font-size: 1.5em;
+  padding-bottom: 10px;
+}
+
+
+.b-sub-box {
+  font-weight: 550;
+  font-size: 1.2em;
+  padding-top: 10px;
+  padding-bottom: 20px;
+}
+
+.a-grid > div {
+  align-items: center;
+  vertical-align: middle;
+}
+
+.a-grid > div > ul > li {
+  padding-left: 15px;
+  justify-self: baseline;
+  letter-spacing: .7px;
+  word-spacing: 0.5px;
+  color: #CCCCCC;
+  transition: .4s ease-in-out;
+  font-size: 0.9em;
+  width: 100%;
+}
+.a-grid > div > ul > li:hover {
+  color: rgb(255, 255 ,255);
+  font-size: 1.1em;
+  cursor: pointer;
+}
+
+
+
+
+
+
+
+@media (max-width: 900px) {
+  #one {
+    display: flex;
+    flex-direction: column;
+    transition: 0.5s;
+}
+
+
+}
