@@ -1,1 +1,1 @@
-# Media-bot
+# Simple web page
